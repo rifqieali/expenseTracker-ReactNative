@@ -48,7 +48,7 @@ function RootLayoutNav() {
   useEffect(() => {
     if (!migrationSuccess) return;
     let cancelled = false;
-    seedIfEmpty()
+    seedIfEmpty(db)
       .then(() => {
         if (!cancelled) setSeedDone(true);
       })
