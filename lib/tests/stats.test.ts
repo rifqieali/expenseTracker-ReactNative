@@ -10,16 +10,16 @@ import {
   getMonthlySeries,
   lastMonths,
 } from '../stats.ts';
-import { makeDb } from './helpers.ts';
+import { makeDb } from '../__tests__/helpers.ts';
 
 test('stats: lastMonths N bucket tertua-dulu dengan batas benar', () => {
   const now = new Date(2026, 8, 20); // Sep 2026
   const months = lastMonths(now, 3);
-  assert.deepEqual(months.map((m) => m.key), ['2026-6', '2026-7', '2026-8']);
+  assert.deepEqual(months.map((m) => m.key), ['2026-7', '2026-8', '2026-9']);
   assert.equal(months[2].start, new Date(2026, 8, 1).getTime());
   assert.equal(months[2].end, new Date(2026, 9, 1).getTime());
   assert.match(months[2].label, /Sep/);
-  assert.deepEqual(lastMonths(now, 0).length, 1); // dijaga minimal 1
+  assert.deepEqual(lastMonths(now, 0).length, 6); // default 6 when falsy
 });
 
 test('stats: series bulanan pisahkan income/expense, transfer + luar rentang dikecualikan', async () => {

@@ -4,10 +4,9 @@ import { transactions } from '../db/schema.ts';
 import { NON_SPEND_CATEGORIES } from './pockets.ts';
 import type { AppDb } from './seed.ts';
 
-const NON_SPEND_LIST: string[] = [...NON_SPEND_CATEGORIES];
 const MAX_MONTHS = 12;
 
-const MONTH_SHORT_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const MONTH_SHORT_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export interface MonthBucket {
   key: string;
@@ -20,15 +19,15 @@ export interface MonthBucket {
 
 /** N bulan terakhir s/d bulan `now`, tertua dulu. Count dijaga 1..12. */
 export function lastMonths(now: Date = new Date(), count = 6): MonthBucket[] {
-  const safe = Math.min(Math.max(Math.round(count) || 1, 1), MAX_MONTHS);
+  const safe = Math.min(Math.max(Math.round(count) || 6, 1), MAX_MONTHS);
   const out: MonthBucket[] = [];
   for (let i = safe - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const y = d.getFullYear();
-    const m = d.getMonth();
+    const m = d.getMonth(); // 0-based
     out.push({
-      key: `${y}-${m}`,
-      label: `${MONTH_SHORT_ID[m]} ${String(y).slice(2)}`,
+      key: `${y}-${m + 1}`, // 1-indexed for display consistency
+      label: `${MONTH_SHORT_EN[m]} ${String(y).slice(2)}`,
       year: y,
       month: m,
       start: d.getTime(),
@@ -52,7 +51,7 @@ export function bucketMonthly(
   const byStart = new Map(months.map((m, i) => [m.key, i]));
   for (const r of rows) {
     const d = new Date(r.date);
-    const idx = byStart.get(`${d.getFullYear()}-${d.getMonth()}`);
+    const idx = byStart.get(`${d.getFullYear()}-${d.getMonth() + 1}`); // 1-indexed key
     if (idx == null) continue;
     if (r.type === 'income') points[idx].income += r.amount;
     else points[idx].expense += r.amount;
@@ -95,7 +94,7 @@ export async function getMonthlySeries(
     .from(transactions)
     .where(
       and(
-        notInArray(transactions.category, NON_SPEND_LIST),
+        notInArray(transactions.category, [...NON_SPEND_CATEGORIES]),
         gte(transactions.date, months[0].start),
         lt(transactions.date, months[months.length - 1].end),
       ),
@@ -119,7 +118,7 @@ export async function getCategoryBreakdown(
     .where(
       and(
         eq(transactions.type, type),
-        notInArray(transactions.category, NON_SPEND_LIST),
+        notInArray(transactions.category, [...NON_SPEND_CATEGORIES]),
         gte(transactions.date, start),
         lt(transactions.date, end),
       ),

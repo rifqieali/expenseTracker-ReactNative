@@ -43,7 +43,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"lib/__tests__/*.test.ts\"",
+    "test": "node --test \"lib/__tests__/*.test.ts\" \"lib/tests/*.test.ts\"",
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check"
   }

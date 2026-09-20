@@ -11,6 +11,8 @@ import { breakdownByCategory, bucketMonthly, lastMonths } from '@/lib/stats';
 import type { TxType } from '@/lib/money';
 
 const BAR_MAX_H = 110;
+const TAB_LABEL: Record<TxType, string> = { expense: 'Keluar', income: 'Masuk' };
+const TAB_COLOR: Record<TxType, string> = { expense: '#EB5757', income: '#27AE60' };
 
 /**
  * Stats bulanan (#6): grafik ringan pemasukan vs pengeluaran 6 bulan +
@@ -40,13 +42,13 @@ export default function StatsScreen() {
           category: transactions.category,
         })
         .from(transactions)
-        .where(
-          and(
-            notInArray(transactions.category, [...NON_SPEND_CATEGORIES]),
-            gte(transactions.date, months[0].start),
-            lt(transactions.date, months[months.length - 1].end),
-          ),
-        ),
+.where(
+      and(
+        notInArray(transactions.category, [...NON_SPEND_CATEGORIES]),
+        gte(transactions.date, months[0].start),
+        lt(transactions.date, months[months.length - 1].end),
+      ),
+    ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [months[0].start, months[months.length - 1].end],
   );
@@ -66,6 +68,8 @@ export default function StatsScreen() {
   }, [rows, selected.start, selected.end]);
   const slices = tab === 'expense' ? breakdown.expense : breakdown.income;
   const totalTab = tab === 'expense' ? selected.expense : selected.income;
+  const tabLabel = TAB_LABEL[tab];
+  const tabColor = TAB_COLOR[tab];
 
   function shiftMonth(delta: number) {
     setOffset((o) => Math.max(0, o + delta));
@@ -105,8 +109,8 @@ export default function StatsScreen() {
               onPress={() => setOffset(offset + (points.length - 1 - i))}
               style={[styles.col, i === points.length - 1 && styles.colActive]}>
               <View style={styles.bars}>
-                <View style={[styles.bar, styles.incomeBar, { height: Math.max(2, (p.income / maxVal) * BAR_MAX_H) }]} />
-                <View style={[styles.bar, styles.expenseBar, { height: Math.max(2, (p.expense / maxVal) * BAR_MAX_H) }]} />
+                <View style={[styles.bar, { backgroundColor: '#27AE60' }, { height: Math.max(2, (p.income / maxVal) * BAR_MAX_H) }]} />
+                <View style={[styles.bar, { backgroundColor: '#EB5757' }, { height: Math.max(2, (p.expense / maxVal) * BAR_MAX_H) }]} />
               </View>
               <Text style={styles.colLabel}>{p.label}</Text>
             </Pressable>
@@ -122,14 +126,12 @@ export default function StatsScreen() {
       <View style={styles.toggleRow}>
         {(['expense', 'income'] as TxType[]).map((t) => (
           <Pressable key={t} onPress={() => setTab(t)} style={[styles.toggle, tab === t && styles.toggleActive]}>
-            <Text style={[styles.toggleText, tab === t && styles.toggleTextActive]}>
-              {t === 'expense' ? 'Keluar' : 'Masuk'}
-            </Text>
+            <Text style={[styles.toggleText, tab === t && styles.toggleTextActive]}>{TAB_LABEL[t]}</Text>
           </Pressable>
         ))}
       </View>
       {slices.length === 0 ? (
-        <Text style={styles.empty}>Bulan ini belum ada transaksi {tab === 'expense' ? 'keluar' : 'masuk'}.</Text>
+        <Text style={styles.empty}>Bulan ini belum ada transaksi {tabLabel.toLowerCase()}.</Text>
       ) : (
         <View style={styles.breakBox}>
           {slices.map((s) => (
@@ -144,7 +146,7 @@ export default function StatsScreen() {
                 <View
                   style={[
                     styles.sliceFill,
-                    tab === 'expense' ? styles.expenseBar : styles.incomeBar,
+                    { backgroundColor: tabColor },
                     { width: `${Math.round(s.share * 100)}%` as const },
                   ]}
                 />
@@ -152,7 +154,7 @@ export default function StatsScreen() {
             </View>
           ))}
           <Text style={styles.totalLine}>
-            Total {tab === 'expense' ? 'keluar' : 'masuk'}: {formatRp(totalTab)}
+            Total {tabLabel.toLowerCase()}: {formatRp(totalTab)}
           </Text>
         </View>
       )}
@@ -180,8 +182,6 @@ const styles = StyleSheet.create({
   colActive: { backgroundColor: '#EBF3FE' },
   bars: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: BAR_MAX_H },
   bar: { width: 10, borderRadius: 3, minHeight: 2 },
-  incomeBar: { backgroundColor: '#27AE60' },
-  expenseBar: { backgroundColor: '#EB5757' },
   colLabel: { fontSize: 10, opacity: 0.7 },
   legend: { flexDirection: 'row', gap: 16, justifyContent: 'center' },
   legendItem: { fontSize: 12, opacity: 0.8 },
