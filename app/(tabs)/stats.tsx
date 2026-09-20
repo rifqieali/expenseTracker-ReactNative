@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 import { and, gte, lt, notInArray } from 'drizzle-orm';
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite';
 
@@ -9,10 +10,11 @@ import { NON_SPEND_CATEGORIES } from '@/lib/pockets';
 import { formatRp } from '@/lib/money';
 import { breakdownByCategory, bucketMonthly, lastMonths } from '@/lib/stats';
 import type { TxType } from '@/lib/money';
+import Colors from '@/constants/Colors';
 
 const BAR_MAX_H = 110;
 const TAB_LABEL: Record<TxType, string> = { expense: 'Keluar', income: 'Masuk' };
-const TAB_COLOR: Record<TxType, string> = { expense: '#EB5757', income: '#27AE60' };
+const TAB_COLOR: Record<TxType, string> = { expense: Colors.light.error, income: Colors.light.success };
 
 /**
  * Stats bulanan (#6): grafik ringan pemasukan vs pengeluaran 6 bulan +
@@ -32,27 +34,24 @@ export default function StatsScreen() {
 
   const months = useMemo(() => lastMonths(selectedDate, 6), [selectedDate]);
 
-  const rangeQuery = useMemo(
-    () =>
-      db
-        .select({
-          type: transactions.type,
-          amount: transactions.amount,
-          date: transactions.date,
-          category: transactions.category,
-        })
-        .from(transactions)
-.where(
-      and(
-        notInArray(transactions.category, [...NON_SPEND_CATEGORIES]),
-        gte(transactions.date, months[0].start),
-        lt(transactions.date, months[months.length - 1].end),
+  // Live query without useMemo - let useLiveQuery handle reactivity
+  const { data: rangeRows } = useLiveQuery(
+    db
+      .select({
+        type: transactions.type,
+        amount: transactions.amount,
+        date: transactions.date,
+        category: transactions.category,
+      })
+      .from(transactions)
+      .where(
+        and(
+          notInArray(transactions.category, [...NON_SPEND_CATEGORIES]),
+          gte(transactions.date, months[0].start),
+          lt(transactions.date, months[months.length - 1].end),
+        ),
       ),
-    ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [months[0].start, months[months.length - 1].end],
   );
-  const { data: rangeRows } = useLiveQuery(rangeQuery);
   const rows = useMemo(() => rangeRows ?? [], [rangeRows]);
 
   const points = useMemo(() => bucketMonthly(rows, months), [rows, months]);
@@ -77,128 +76,240 @@ export default function StatsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.nav}>
+      {/* Month Navigation */}
+      <View style={styles.navCard}>
         <Pressable onPress={() => shiftMonth(1)} style={styles.navBtn}>
-          <Text style={styles.navText}>‹</Text>
+          <SymbolView name="chevron.left" size={20} tintColor={Colors.light.primary} />
         </Pressable>
         <Text style={styles.navLabel}>{selected.label}</Text>
         <Pressable onPress={() => shiftMonth(-1)} disabled={offset === 0} style={[styles.navBtn, offset === 0 && styles.navDisabled]}>
-          <Text style={styles.navText}>›</Text>
+          <SymbolView name="chevron.right" size={20} tintColor={offset === 0 ? Colors.light.separator : Colors.light.primary} />
         </Pressable>
       </View>
 
+      {/* Summary */}
       <View style={styles.summaryRow}>
-        <View style={styles.summaryBox}>
-          <Text style={styles.summaryLabel}>Masuk</Text>
+        <View style={[styles.summaryBox, styles.incomeBox]}>
+          <View style={[styles.summaryIconWrap, { backgroundColor: '#E8F5E9' }]}>
+            <SymbolView name="arrow.down.left" size={18} tintColor={Colors.light.success} />
+          </View>
+          <Text style={styles.summaryLabel}>Pemasukan</Text>
           <Text style={[styles.summaryValue, styles.incomeText]}>+{formatRp(selected.income)}</Text>
         </View>
-        <View style={styles.summaryBox}>
-          <Text style={styles.summaryLabel}>Keluar</Text>
+        <View style={[styles.summaryBox, styles.expenseBox]}>
+          <View style={[styles.summaryIconWrap, { backgroundColor: '#FEE2E2' }]}>
+            <SymbolView name="arrow.up.right" size={18} tintColor={Colors.light.error} />
+          </View>
+          <Text style={styles.summaryLabel}>Pengeluaran</Text>
           <Text style={[styles.summaryValue, styles.expenseText]}>-{formatRp(selected.expense)}</Text>
         </View>
       </View>
 
-      <Text style={styles.section}>6 bulan terakhir</Text>
-      {!hasAny ? (
-        <Text style={styles.empty}>Belum ada data — catat transaksi dulu di tab Catat.</Text>
-      ) : (
-        <View style={styles.chart}>
-          {points.map((p, i) => (
-            <Pressable
-              key={p.key}
-              onPress={() => setOffset(offset + (points.length - 1 - i))}
-              style={[styles.col, i === points.length - 1 && styles.colActive]}>
-              <View style={styles.bars}>
-                <View style={[styles.bar, { backgroundColor: '#27AE60' }, { height: Math.max(2, (p.income / maxVal) * BAR_MAX_H) }]} />
-                <View style={[styles.bar, { backgroundColor: '#EB5757' }, { height: Math.max(2, (p.expense / maxVal) * BAR_MAX_H) }]} />
+      {/* Chart */}
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>Grafik 6 Bulan</Text>
+        {!hasAny ? (
+          <Text style={styles.empty}>Belum ada data — catat transaksi dulu di tab Catat.</Text>
+        ) : (
+          <>
+            <View style={styles.chart}>
+              {points.map((p, i) => (
+                <Pressable
+                  key={p.key}
+                  onPress={() => setOffset(offset + (points.length - 1 - i))}
+                  style={[styles.col, i === points.length - 1 && styles.colActive]}>
+                  <View style={styles.bars}>
+                    <View style={[styles.bar, { backgroundColor: Colors.light.success }, { height: Math.max(2, (p.income / maxVal) * BAR_MAX_H) }]} />
+                    <View style={[styles.bar, { backgroundColor: Colors.light.error }, { height: Math.max(2, (p.expense / maxVal) * BAR_MAX_H) }]} />
+                  </View>
+                  <Text style={styles.colLabel}>{p.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.legend}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: Colors.light.success }]} />
+                <Text style={styles.legendText}>Masuk</Text>
               </View>
-              <Text style={styles.colLabel}>{p.label}</Text>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: Colors.light.error }]} />
+                <Text style={styles.legendText}>Keluar</Text>
+              </View>
+            </View>
+          </>
+        )}
+      </View>
+
+      {/* Category Breakdown */}
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>Kategori · {selected.label}</Text>
+        
+        <View style={styles.toggleRow}>
+          {(['expense', 'income'] as TxType[]).map((t) => (
+            <Pressable key={t} onPress={() => setTab(t)} style={[styles.toggle, tab === t && styles.toggleActive]}>
+              <Text style={[styles.toggleText, tab === t && styles.toggleTextActive]}>{TAB_LABEL[t]}</Text>
             </Pressable>
           ))}
         </View>
-      )}
-      <View style={styles.legend}>
-        <Text style={styles.legendItem}><Text style={styles.dotIncome}>●</Text> Masuk</Text>
-        <Text style={styles.legendItem}><Text style={styles.dotExpense}>●</Text> Keluar</Text>
-      </View>
 
-      <Text style={styles.section}>Kategori · {selected.label}</Text>
-      <View style={styles.toggleRow}>
-        {(['expense', 'income'] as TxType[]).map((t) => (
-          <Pressable key={t} onPress={() => setTab(t)} style={[styles.toggle, tab === t && styles.toggleActive]}>
-            <Text style={[styles.toggleText, tab === t && styles.toggleTextActive]}>{TAB_LABEL[t]}</Text>
-          </Pressable>
-        ))}
-      </View>
-      {slices.length === 0 ? (
-        <Text style={styles.empty}>Bulan ini belum ada transaksi {tabLabel.toLowerCase()}.</Text>
-      ) : (
-        <View style={styles.breakBox}>
-          {slices.map((s) => (
-            <View key={s.category} style={styles.sliceRow}>
-              <View style={styles.sliceHead}>
-                <Text style={styles.sliceName}>{s.category}</Text>
-                <Text style={styles.sliceVal}>
-                  {formatRp(s.total)} · {Math.round(s.share * 100)}%
-                </Text>
+        {slices.length === 0 ? (
+          <Text style={styles.empty}>Bulan ini belum ada transaksi {tabLabel.toLowerCase()}.</Text>
+        ) : (
+          <View style={styles.breakdownList}>
+            {slices.map((s) => (
+              <View key={s.category} style={styles.sliceRow}>
+                <View style={styles.sliceHead}>
+                  <Text style={styles.sliceName}>{s.category}</Text>
+                  <Text style={styles.sliceVal}>
+                    {formatRp(s.total)} · {Math.round(s.share * 100)}%
+                  </Text>
+                </View>
+                <View style={styles.barBg}>
+                  <View
+                    style={[
+                      styles.sliceFill,
+                      { backgroundColor: tabColor },
+                      { width: `${Math.round(s.share * 100)}%` as const },
+                    ]}
+                  />
+                </View>
               </View>
-              <View style={styles.barBg}>
-                <View
-                  style={[
-                    styles.sliceFill,
-                    { backgroundColor: tabColor },
-                    { width: `${Math.round(s.share * 100)}%` as const },
-                  ]}
-                />
-              </View>
+            ))}
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Total {tabLabel.toLowerCase()}</Text>
+              <Text style={styles.totalValue}>{formatRp(totalTab)}</Text>
             </View>
-          ))}
-          <Text style={styles.totalLine}>
-            Total {tabLabel.toLowerCase()}: {formatRp(totalTab)}
-          </Text>
-        </View>
-      )}
+          </View>
+        )}
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { padding: 16, gap: 12, paddingBottom: 32 },
-  nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  navBtn: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20, backgroundColor: '#eee' },
+  container: { flex: 1, backgroundColor: Colors.light.background },
+  content: { padding: 20, gap: 16, paddingBottom: 32 },
+  
+  // Month Navigation
+  navCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.light.cardBackground,
+    borderRadius: 16,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  navBtn: { 
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.light.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   navDisabled: { opacity: 0.4 },
-  navText: { fontSize: 22, fontWeight: 'bold' },
-  navLabel: { fontSize: 19, fontWeight: 'bold' },
-  summaryRow: { flexDirection: 'row', gap: 10 },
-  summaryBox: { flex: 1, borderRadius: 14, padding: 14, gap: 2, backgroundColor: '#fff', elevation: 1 },
-  summaryLabel: { fontSize: 12, opacity: 0.7 },
-  summaryValue: { fontSize: 17, fontWeight: 'bold' },
-  incomeText: { color: '#27AE60' },
-  expenseText: { color: '#EB5757' },
-  section: { fontSize: 17, fontWeight: 'bold', marginTop: 4 },
-  chart: { flexDirection: 'row', alignItems: 'flex-end', backgroundColor: '#fff', borderRadius: 14, padding: 12, elevation: 1 },
-  col: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 4, borderRadius: 8 },
-  colActive: { backgroundColor: '#EBF3FE' },
-  bars: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: BAR_MAX_H },
-  bar: { width: 10, borderRadius: 3, minHeight: 2 },
-  colLabel: { fontSize: 10, opacity: 0.7 },
-  legend: { flexDirection: 'row', gap: 16, justifyContent: 'center' },
-  legendItem: { fontSize: 12, opacity: 0.8 },
-  dotIncome: { color: '#27AE60' },
-  dotExpense: { color: '#EB5757' },
-  toggleRow: { flexDirection: 'row', gap: 10 },
-  toggle: { flex: 1, padding: 10, borderRadius: 10, backgroundColor: '#eee', alignItems: 'center' },
-  toggleActive: { backgroundColor: '#2F80ED' },
-  toggleText: { fontSize: 14, fontWeight: '600', color: '#333' },
+  navLabel: { fontSize: 18, fontWeight: 'bold', color: Colors.light.text },
+  
+  // Summary
+  summaryRow: { flexDirection: 'row', gap: 12 },
+  summaryBox: { 
+    flex: 1, 
+    borderRadius: 16, 
+    padding: 16, 
+    backgroundColor: Colors.light.cardBackground,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  summaryIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  incomeBox: {},
+  expenseBox: {},
+  summaryLabel: { fontSize: 13, color: Colors.light.secondaryText, marginBottom: 4 },
+  summaryValue: { fontSize: 18, fontWeight: 'bold' },
+  incomeText: { color: Colors.light.success },
+  expenseText: { color: Colors.light.error },
+  
+  // Section Card
+  sectionCard: {
+    backgroundColor: Colors.light.cardBackground,
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.light.text, marginBottom: 14 },
+  
+  // Chart
+  chart: { 
+    flexDirection: 'row', 
+    alignItems: 'flex-end', 
+    backgroundColor: Colors.light.surfaceVariant,
+    borderRadius: 12,
+    padding: 12,
+  },
+  col: { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 8, borderRadius: 8 },
+  colActive: { backgroundColor: Colors.light.cardBackground },
+  bars: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: BAR_MAX_H },
+  bar: { width: 12, borderRadius: 4, minHeight: 2 },
+  colLabel: { fontSize: 11, color: Colors.light.secondaryText, fontWeight: '500' },
+  
+  // Legend
+  legend: { flexDirection: 'row', gap: 20, justifyContent: 'center', marginTop: 14 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendText: { fontSize: 12, color: Colors.light.secondaryText, fontWeight: '500' },
+  
+  // Toggle
+  toggleRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  toggle: { 
+    flex: 1, 
+    padding: 12, 
+    borderRadius: 12, 
+    backgroundColor: Colors.light.surfaceVariant, 
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.light.separator,
+  },
+  toggleActive: { backgroundColor: Colors.light.primary, borderColor: Colors.light.primary },
+  toggleText: { fontSize: 14, fontWeight: '600', color: Colors.light.text },
   toggleTextActive: { color: '#fff' },
-  breakBox: { backgroundColor: '#fff', borderRadius: 14, padding: 14, gap: 10, elevation: 1 },
-  sliceRow: { gap: 4 },
+  
+  // Breakdown
+  breakdownList: { gap: 14 },
+  sliceRow: { gap: 6 },
   sliceHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sliceName: { fontSize: 14, fontWeight: '600' },
-  sliceVal: { fontSize: 13, opacity: 0.75 },
-  barBg: { height: 8, borderRadius: 4, backgroundColor: '#eee', overflow: 'hidden' },
+  sliceName: { fontSize: 14, fontWeight: '600', color: Colors.light.text },
+  sliceVal: { fontSize: 13, color: Colors.light.secondaryText },
+  barBg: { height: 8, borderRadius: 4, backgroundColor: Colors.light.separator, overflow: 'hidden' },
   sliceFill: { height: 8, borderRadius: 4 },
-  totalLine: { fontSize: 13, fontWeight: 'bold', marginTop: 2 },
-  empty: { opacity: 0.6, fontSize: 14, padding: 8, textAlign: 'center' },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.light.separator,
+    marginTop: 4,
+  },
+  totalLabel: { fontSize: 14, fontWeight: '600', color: Colors.light.text },
+  totalValue: { fontSize: 16, fontWeight: 'bold', color: Colors.light.text },
+  
+  empty: { opacity: 0.6, fontSize: 14, padding: 20, textAlign: 'center', color: Colors.light.secondaryText },
 });

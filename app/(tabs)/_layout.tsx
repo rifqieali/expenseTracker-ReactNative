@@ -3,7 +3,6 @@ import { SymbolView } from 'expo-symbols';
 import { Tabs } from 'expo-router';
 
 import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 
 type SymbolName = ComponentProps<typeof SymbolView>['name'];
@@ -13,12 +12,10 @@ function TabIcon({ name, color }: { name: SymbolName; color: string }) {
 }
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme].tint,
+        tabBarActiveTintColor: Colors.light.tint,
         // Disable the static render of the header on web
         // to prevent a hydration error in React Navigation v6.
         headerShown: useClientOnlyValue(false, true),
@@ -62,7 +59,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="stats"
         options={{
-          title: 'Stats',
+          title: 'Statistik',
           tabBarIcon: ({ color }) => (
             <TabIcon
               name={{ ios: 'chart.bar.fill', android: 'bar_chart', web: 'bar_chart' }}
@@ -74,7 +71,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Setting',
+          title: 'Pengaturan',
           tabBarIcon: ({ color }) => (
             <TabIcon
               name={{ ios: 'gearshape.fill', android: 'settings', web: 'settings' }}
